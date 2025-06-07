@@ -3,4 +3,5 @@
 *.img
 *.o
 *.iso
-build/
+build/build/myos.iso
+build/iso/boot/kernel.bin
