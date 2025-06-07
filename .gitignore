@@ -1,0 +1,6 @@
+<large-file>
+*.bin
+*.img
+*.o
+*.iso
+build/
