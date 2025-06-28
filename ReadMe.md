@@ -17,6 +17,7 @@ Core Shell Functionalities
   - `touch <id>` – Creates a new virtual file with index `id`
   - `write <id>` – Opens a notepad-like editor for the specified file
   - `show <id>` – Displays contents of a virtual file
+  - `calc <mathematical-expression>` - Calculates the given Mathematical expression
   - `del <id>` – Deletes a file by index
   - `uchange` – Changes the username
   - `shutdown` – Halts the virtual machine
@@ -48,6 +49,16 @@ Core Shell Functionalities
 
 ---
 
+##  How to use it Online
+
+- The Build Files is too Large to be uploaded on Github
+-  So  here's the link: https://drive.google.com/drive/folders/1WT1JohNk0i3bVwRvYRJz9_-Uq-n1Iol2?usp=sharing
+-  Download "myos.iso" in which the operating system is present
+-  Then open up https://copy.sh/v86/ , and scroll down to find "CD Image"
+-  Right beside CD Image , There's a button that says choose file
+-  choose the iso file that you just installed
+-  now click on Start Emulating
+ 
 ## 🧪 Sample Commands
 
 ```bash
@@ -58,4 +69,9 @@ show 1          # View contents of file 1
 del 1           # Deletes file 1
 ltf             # List available text files
 uchange         # Change the login username
+calc  15+76-25^3*(18+45-64/8 +1)
+#calculates the output of any mathematical expression
 shutdown        # Power off
+
+
+
