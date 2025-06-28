@@ -19,7 +19,8 @@ $(BUILD_DIR):
 $(BUILD_DIR)/boot.o: boot.s | $(BUILD_DIR)
 	$(ASM) -f elf32 $< -o $@
 
-$(BUILD_DIR)/kernel.o: kernel/kernel.cpp | $(BUILD_DIR)
+# kernel.o will compile kernel.cpp and implicitly include stack.hpp
+$(BUILD_DIR)/kernel.o: kernel/kernel.cpp kernel/data_structures/stack.hpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/kernel.elf: $(BUILD_DIR)/boot.o $(BUILD_DIR)/kernel.o

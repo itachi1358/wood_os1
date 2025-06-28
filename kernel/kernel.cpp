@@ -1,7 +1,10 @@
 
+
 extern "C" void kernel_main();
 
-#include <stdint.h> // add this if not already included
+#include <stdint.h>
+#include "data_structures/stack.hpp"
+
 static inline void outb(uint16_t port, uint8_t val) {
     asm volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
@@ -14,23 +17,45 @@ static inline uint8_t inb(uint16_t port) {
 class Keyboard {
 private:
     static const char scancode_to_ascii[128];
+    static const char scancode_to_ascii_shift[128];
+    bool shiftPressed = false;
 
 public:
     char get_key() {
         int scancode;
         while (!(inb(0x64) & 1)); // Wait for key press
         scancode = inb(0x60);
-        if (scancode & 0x80) return 0; // key release
-        return scancode_to_ascii[scancode];
+
+        if (scancode == 0x2A || scancode == 0x36) {
+            shiftPressed = true; // Left or Right Shift pressed
+            return 0;
+        }
+        else if (scancode == 0xAA || scancode == 0xB6) {
+            shiftPressed = false; // Shift released
+            return 0;
+        }
+
+        if (scancode & 0x80) return 0; // key release for other keys
+
+        if (shiftPressed)
+            return scancode_to_ascii_shift[scancode];
+        else
+            return scancode_to_ascii[scancode];
     }
 };
-
 const char Keyboard::scancode_to_ascii[128] = {
-    0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
-    '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n', 0,
-    'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0,
-    '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' ',
-    // Fill rest with 0
+    0,  27, '1','2','3','4','5','6','7','8','9','0','-','=', '\b',
+    '\t','q','w','e','r','t','y','u','i','o','p','[',']','\n', 0,
+    'a','s','d','f','g','h','j','k','l',';','\'','`', 0,'\\',
+    'z','x','c','v','b','n','m',',','.','/', 0,'*', 0,' ', // space = 57
+    // rest 71+ are not used in kernel for now
+};
+
+const char Keyboard::scancode_to_ascii_shift[128] = {
+    0,  27, '!','@','#','$','%','^','&','*','(',')','_','+', '\b',
+    '\t','Q','W','E','R','T','Y','U','I','O','P','{','}','\n', 0,
+    'A','S','D','F','G','H','J','K','L',':','"','~', 0,'|',
+    'Z','X','C','V','B','N','M','<','>','?', 0,'*', 0,' ',
 };
 
 char* video = (char*)0xB8000;
@@ -70,6 +95,9 @@ bool strcmp(const char* str1,const char* str2){
      }
      return *str1 == '\0' && *str2 == '\0';
 }
+int strlen(const char* str){
+    return sizeof(str)/4;
+}
 char* split_exp( char*str){
     char* ans;
     while(*str){
@@ -81,12 +109,6 @@ char* split_exp( char*str){
     }
     return ans;
 }
-
-class folder{
-    char notepad_files[5][180][180];
-    //only 5 files can be stored
-
-};
 
 static inline void outw(unsigned short port, unsigned short val) {
     asm volatile ( "outw %0, %1" : : "a"(val), "Nd"(port) );
@@ -112,10 +134,177 @@ void render_buffer(char notepad_file[180][180], bool should_clear){
         print_char('\n');
     }
 
-    // Set cursor based on row and col
     cursor = (row * 160) + (col * 2);
 }
 
+class calculator {
+public:
+    bool isoperator(char c) const {
+        return c == '+' || c == '-' || c == '*' || c == '/' || c == '^';
+    }
+
+    bool isdigit(char c) const {
+        return c >= '0' && c <= '9';
+    }
+
+    int prec(char c) const {
+        switch(c) {
+            case '^': return 4;
+            case '*': case '/': return 3;
+            case '+': case '-': return 2;
+            case '(': return 1;
+            default: return 0;
+        }
+    }
+
+    char* inf_to_pos(const char* exp) {
+        static char postfix[100] = {0};
+        Stack<char, 100> st;
+        int i = 0, j = 0;
+
+        while (exp[i] != '\0') {
+            char ch = exp[i];
+
+            if (ch == ' ') {
+                i++;
+                continue;
+            }
+            else if (ch == '(') {
+                st.push(ch);
+            }
+            else if (ch == ')') {
+                while (!st.empty() && st.data[st.peek()] != '(') {
+                    postfix[j++] = st.data[st.peek()];
+                    st.pop();
+                }
+                if (st.empty()) {
+                    postfix[0] = '\0';
+                    return postfix; // Mismatched parentheses
+                }
+                st.pop(); // Remove '(' from stack
+            }
+            else if (isoperator(ch)) {
+                while (!st.empty() && prec(st.data[st.peek()]) >= prec(ch)) {
+                    postfix[j++] = st.data[st.peek()];
+                    st.pop();
+                }
+                st.push(ch);
+            }
+            else if (isdigit(ch)) {
+                // Handle multi-digit numbers
+                while (isdigit(exp[i])) {
+                    postfix[j++] = exp[i++];
+                }
+                postfix[j++] = ' '; // Add space as delimiter
+                continue; // Skip i++ at the end
+            }
+            i++;
+        }
+
+        // Pop remaining operators
+        while (!st.empty()) {
+            if (st.data[st.peek()] == '(') {
+                postfix[0] = '\0';
+                return postfix; // Mismatched parentheses
+            }
+            postfix[j++] = st.data[st.peek()];
+            st.pop();
+        }
+        postfix[j] = '\0';
+        return postfix;
+    }
+
+    void calculate(const char* post_fix) {
+        Stack<int, 100> st;
+        int i = 0;
+
+        while (post_fix[i] != '\0') {
+            char ch = post_fix[i];
+
+            if (ch == ' ') {
+                i++;
+                continue;
+            }
+            else if (isoperator(ch)) {
+                if (st.size() < 2) {
+                    print_string("Invalid Expression\n");
+                    return;
+                }
+
+                int a = st.data[st.peek()]; st.pop();
+                int b = st.data[st.peek()]; st.pop();
+                int result = 0;
+
+                switch(ch) {
+                    case '+': result = b + a; break;
+                    case '-': result = b - a; break;
+                    case '*': result = b * a; break;
+                    case '/': 
+                        if (a == 0) {
+                            print_string("Division by zero!\n");
+                            return;
+                        }
+                        result = b / a; 
+                        break;
+                    case '^':
+                        result = 1;
+                        for (int j = 0; j < a; j++) result *= b;
+                        break;
+                }
+                st.push(result);
+            }
+            else if (isdigit(ch)) {
+                int num = 0;
+                while (isdigit(post_fix[i])) {
+                    num = num * 10 + (post_fix[i] - '0');
+                    i++;
+                }
+                st.push(num);
+                continue; // Skip i++ at the end
+            }
+            i++;
+        }
+
+        if (st.size() != 1) {
+            print_string("Invalid Expression\n");
+        } else {
+            print_string("Result: ");
+            print_number(st.data[st.peek()]);
+            print_string("\n");
+        }
+    }
+
+private:
+    void print_number(int num) const {
+        if (num == 0) {
+            print_string("0");
+            return;
+        }
+
+        char buffer[16];
+        int index = 0;
+        bool is_negative = false;
+
+        if (num < 0) {
+            is_negative = true;
+            num = -num;
+        }
+
+        while (num > 0 && index < 15) {
+            buffer[index++] = '0' + (num % 10);
+            num /= 10;
+        }
+
+        if (is_negative) {
+            print_string("-");
+        }
+
+        for (int j = index - 1; j >= 0; j--) {
+            char str[2] = {buffer[j], '\0'};
+            print_string(str);
+        }
+    }
+};
 class notepad {
 public:
     Keyboard keyboard;
@@ -193,7 +382,7 @@ public:
 
  char notepad_files[6][180][180];
     //only 6 files can be stored
-    char User[20]="abc";
+char User[20]="abc";
 char Pass[20]="123";
 void process_command( char* cmd) {
     if (strcmp(cmd, "hello")) {
@@ -202,10 +391,11 @@ void process_command( char* cmd) {
         clear_screen();
     }
     else if(cmd[0]=='c' && cmd[1]=='a' && cmd[2]=='l' && cmd[3]=='c'){
+        calculator calc;
         char *exp = split_exp(cmd);
-        print_string(exp);
-        print_char('\n');
-        print_string("calculation\n");
+        char* str=calc.inf_to_pos(exp);
+        calc.calculate(str);
+
     } 
     else if(cmd[0]=='w' && cmd[1]=='r' && cmd[2]=='i' && cmd[3]=='t' && cmd[4]=='e'){
         int file_idx=cmd[6]-'0';
@@ -374,7 +564,7 @@ extern "C" void kernel_main() {
 }
 
    
-    print_string("Please Enter Your Password:\n");
+    print_string("\n Please Enter Your Password:\n");
     bool password_crct=false;
     while(1 && !password_crct){
         char c=keyboard.get_key();
