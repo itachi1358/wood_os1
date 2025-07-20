@@ -2,6 +2,8 @@
 
 woodOS is a lightweight, low-level shell interface simulating the behavior of an operating system. Built entirely from scratch using C/C++ and Assembly (for low-level interfacing), this project runs directly on a virtual machine (like QEMU), bypassing modern operating system abstractions.
 
+Here's the Video Demo: https://youtu.be/NBYLa1Dkw4k
+
 > 🔧 Built with: Assembly, C/C++ | 💻 Platform: QEMU (or bare metal) |  No external libraries used
 
 ---
